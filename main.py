@@ -1,7 +1,7 @@
 import datetime
 import os
 import re
-import json
+import json, csv
 from bs4 import BeautifulSoup
 import time
 import asyncio
@@ -128,14 +128,94 @@ async def gather_data():
         await asyncio.gather(*tasks)
 
 
+def delete_repeats():
+    data = house_data.copy()
+
+    seen = {}
+    unique_data = []
+
+    for obj in data:
+        key1 = obj['cost']
+        key2 = obj['cost_by_square']
+        key3 = obj['city']
+        key4 = obj['address']
+        key5 = obj['district']
+        key6 = obj['microdistrict']
+        key7 = obj['zk']
+        key8 = obj['subway']
+        key9 = obj['floor']
+        key10 = obj['number_rooms']
+        key11 = obj['square_meters']
+
+        key_tuple = (key1, key2, key3, key4, key5, key6, key7, key8, key9, key10, key11)
+
+        if key_tuple in seen:
+            continue
+
+        seen[key_tuple] = True
+        unique_data.append(obj)
+
+    return unique_data
+
+
 def main():
     if not os.path.exists("data"):
         os.mkdir("data")
     asyncio.run(gather_data())
 
     cur_time = datetime.datetime.now().strftime("%d_%m_%Y_%H_%M")
+
+    house_data = delete_repeats()
+
     with open(f"data/house_scaper_{cur_time}.json", "w", encoding="utf-8") as file:
         json.dump(house_data, file, indent=4, ensure_ascii=False)
+
+    with open(f"data/house_scaper_{cur_time}.csv", "w", encoding="utf-8-sig", newline="") as file:
+        writer = csv.writer(file, delimiter=',')
+
+        writer.writerow(
+            (
+                "Стоимость",
+                "Стоимость / м^2",
+                "Город",
+                "Адрес",
+                "Район",
+                "Микрорайон",
+                "ЖК",
+                "Метро",
+                "Этаж",
+                "Кол-во комнат",
+                "Площадь",
+                "Дата публикации",
+                "Контакты",
+                "Ссылка",
+                "Описание"
+            )
+        )
+
+    for house in house_data:
+        with open(f"data/house_scaper_{cur_time}.csv", "a", encoding="utf-8-sig", newline="") as file:
+            writer = csv.writer(file, delimiter=',')
+
+            writer.writerow(
+                [
+                    house["cost"],
+                    house["cost_by_square"],
+                    house["city"],
+                    house["address"],
+                    house["district"],
+                    house["microdistrict"],
+                    house["zk"],
+                    house["subway"],
+                    house["floor"],
+                    house["number_rooms"],
+                    house["square_meters"],
+                    house["publication_date"],
+                    house["contacts"],
+                    house["link"],
+                    house["description"]
+                ]
+            )
 
     finish_time = time.time() - start_time
     print(f"[INFO] Time spent {finish_time}")
