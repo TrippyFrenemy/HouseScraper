@@ -17,6 +17,15 @@ house_data = []
 start_time = time.time()
 
 
+async def get_description(session, h_url):
+    async with session.get(url=h_url, headers=headers) as request_post:
+        soup = BeautifulSoup(await request_post.text(), "lxml")
+        try:
+            return soup.find("div", class_="offer-view-section-text").text.strip().replace("\n", "  ")
+        except:
+            return "-"
+
+
 async def get_all_pages(session, page, pages_count):
     url = f"https://rieltor.ua/flats-sale/?page={page}#10.5/50.4333/30.5167"
 
@@ -64,6 +73,7 @@ async def get_all_pages(session, page, pages_count):
                 else:
                     h_microdistrict = h_temp[0].text.strip()
                     h_zk = "-"
+
             except:
                 h_microdistrict = "-"
                 h_zk = "-"
@@ -75,8 +85,15 @@ async def get_all_pages(session, page, pages_count):
             h_publication = hi.find("div", class_="catalog-card-update").text.strip()
             h_publication = re.sub(r".*\nДод: ", "", h_publication)
 
-            house_data.append(
-            {
+            try:
+                h_author = hi.find("span", class_="catalog-card-author-title").text.strip()
+            except:
+                h_author = hi.find("a", class_="catalog-card-author-title").text.strip()
+            h_telephone = hi.find("div", {"data-jss": "ovContacts"}).text.strip().replace("\n", ", ")
+
+            h_description = await get_description(session, h_url)
+
+            house_data.append({
                 "cost": h_price,
                 "cost_by_square": h_price_by_square,
                 "address": h_address,
@@ -85,15 +102,15 @@ async def get_all_pages(session, page, pages_count):
                 "zk": h_zk,
                 "city": h_city,
                 "subway": h_subway,
-                "description": "опис обєкта, бла-бла-бла",
+                "description": h_description,
                 "floor": h_floors,
                 "number_rooms": h_num_of_rooms,
                 "square_meters": h_square,
                 "publication_date": h_publication,
-                "contacts": "ім’я, телефон",
+                "contacts": f"{h_author}, {h_telephone}",
                 "link": h_url
             })
-        print(f"[INFO] {page} page downloaded as html file / {pages_count}")
+        print(f"[INFO] {page} page downloaded / {pages_count}")
 
 
 async def gather_data():
@@ -117,7 +134,7 @@ def main():
     asyncio.run(gather_data())
 
     cur_time = datetime.datetime.now().strftime("%d_%m_%Y_%H_%M")
-    with open(f"data/house_scaper_{cur_time}_async.json", "w", encoding="utf-8") as file:
+    with open(f"data/house_scaper_{cur_time}.json", "w", encoding="utf-8") as file:
         json.dump(house_data, file, indent=4, ensure_ascii=False)
 
     finish_time = time.time() - start_time
