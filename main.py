@@ -6,10 +6,11 @@ from bs4 import BeautifulSoup
 import time
 import asyncio
 import aiohttp
+from fake_useragent import UserAgent
 
 
 headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+    "User-Agent": str(UserAgent().random)
 }
 url_global = "https://rieltor.ua/flats-sale/#10.5/50.4333/30.5167"
 house_data = []
@@ -114,9 +115,10 @@ async def get_all_pages(session, page, pages_count):
 
 
 async def gather_data():
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(trust_env=True) as session:
         request = await session.get(url=url_global, headers=headers)
         soup = BeautifulSoup(await request.text(), "lxml")
+
         pages_count = int(soup.find("div", class_="pagin_offers_wr").find_all("a")[-1].text)
 
         tasks = []

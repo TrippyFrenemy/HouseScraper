@@ -11,3 +11,7 @@ All collected information is stored in the "data" folder, if it does not exist, 
 ```bash
 python main.py
 ```
+
+
+## Possible errors
+I use multithreading, there is a chance to get banned on the site, so use a proxy
