@@ -1,18 +1,20 @@
-import datetime
 import os
-import re
-import json, csv
-from bs4 import BeautifulSoup
-import time
 import asyncio
+import csv
+import datetime
+import json
+import re
+import time
 import aiohttp
+from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
-
 
 headers = {
     "User-Agent": str(UserAgent().random)
 }
+
 url_global = "https://rieltor.ua/flats-sale/#10.5/50.4333/30.5167"
+
 house_data = []
 
 start_time = time.time()
@@ -29,89 +31,94 @@ async def get_description(session, h_url):
 
 async def get_all_pages(session, page, pages_count):
     url = f"https://rieltor.ua/flats-sale/?page={page}#10.5/50.4333/30.5167"
+    try:
+        async with session.get(url=url, headers=headers) as req:
+            soup = BeautifulSoup(await req.text(), "lxml")
+            house_items = soup.find_all("div", class_="catalog-card")
 
-    async with session.get(url=url, headers=headers) as req:
-        soup = BeautifulSoup(await req.text(), "lxml")
-        house_items = soup.find_all("div", class_="catalog-card")
+            for hi in house_items:
+                h_url = hi.find("a", class_="catalog-card-media")["href"]
+                try:
+                    h_price = hi.find("strong", class_="catalog-card-price-title").text
 
-        for hi in house_items:
-            h_url = hi.find("a", class_="catalog-card-media")["href"]
-            h_price = hi.find("strong", class_="catalog-card-price-title").text
+                    try:
+                        h_price_by_square = hi.find("div", class_="catalog-card-price-details").text.strip()
+                    except:
+                        h_price_by_square = "-"
 
-            try:
-                h_price_by_square = hi.find("div", class_="catalog-card-price-details").text.strip()
-            except:
-                h_price_by_square = "-"
+                    try:
+                        h_address = hi.find("div", class_="catalog-card-address").text
+                    except:
+                        h_address = "-"
 
-            try:
-                h_address = hi.find("div", class_="catalog-card-address").text
-            except:
-                h_address = "-"
+                    try:
+                        h_city = hi.find("a", {"data-analytics-event": "card-click-region"}).text
+                    except:
+                        h_city = "-"
 
-            try:
-                h_city = hi.find("a", {"data-analytics-event": "card-click-region"}).text
-            except:
-                h_city = "-"
+                    try:
+                        h_district = hi.find("a", {"data-analytics-event": "card-click-region"}).next_sibling.next_sibling.text.strip()
+                    except:
+                        h_district = "-"
 
-            try:
-                h_district = hi.find("a", {"data-analytics-event": "card-click-region"}).next_sibling.next_sibling.text.strip()
-            except:
-                h_district = "-"
+                    try:
+                        h_subway = hi.find("a", class_="-subway").text.strip()
+                    except:
+                        h_subway = "-"
 
-            try:
-                h_subway = hi.find("a", class_="-subway").text.strip()
-            except:
-                h_subway = "-"
+                    try:
+                        h_temp = hi.find_all("a", class_="catalog-card-chip -orient")
+                        if len(h_temp) == 2:
+                            h_microdistrict = h_temp[0].text.strip()
+                            h_zk = h_temp[1].text.strip()
+                        elif h_temp[0].text.startswith("ЖК"):
+                            h_zk = h_temp[0].text.strip()
+                            h_microdistrict = "-"
+                        else:
+                            h_microdistrict = h_temp[0].text.strip()
+                            h_zk = "-"
 
-            try:
-                h_temp = hi.find_all("a", class_="catalog-card-chip -orient")
-                if len(h_temp) == 2:
-                    h_microdistrict = h_temp[0].text.strip()
-                    h_zk = h_temp[1].text.strip()
-                elif h_temp[0].text.startswith("ЖК"):
-                    h_zk = h_temp[0].text.strip()
-                    h_microdistrict = "-"
-                else:
-                    h_microdistrict = h_temp[0].text.strip()
-                    h_zk = "-"
+                    except:
+                        h_microdistrict = "-"
+                        h_zk = "-"
 
-            except:
-                h_microdistrict = "-"
-                h_zk = "-"
+                    h_num_of_rooms = hi.find("div", class_="catalog-card-details-row").text.strip()
+                    h_square = hi.find("div", class_="catalog-card-details-row").next_sibling.next_sibling.text.strip().replace(" ", "")
+                    h_floors = hi.find("div", class_="catalog-card-details-row").next_sibling.next_sibling.next_sibling.next_sibling.text.strip()
 
-            h_num_of_rooms = hi.find("div", class_="catalog-card-details-row").text.strip()
-            h_square = hi.find("div", class_="catalog-card-details-row").next_sibling.next_sibling.text.strip().replace(" ", "")
-            h_floors = hi.find("div", class_="catalog-card-details-row").next_sibling.next_sibling.next_sibling.next_sibling.text.strip()
+                    h_publication = hi.find("div", class_="catalog-card-update").text.strip()
+                    h_publication = re.sub(r".*\nДод: ", "", h_publication)
 
-            h_publication = hi.find("div", class_="catalog-card-update").text.strip()
-            h_publication = re.sub(r".*\nДод: ", "", h_publication)
+                    try:
+                        h_author = hi.find("span", class_="catalog-card-author-title").text.strip()
+                    except:
+                        h_author = hi.find("a", class_="catalog-card-author-title").text.strip()
+                    h_telephone = hi.find("div", {"data-jss": "ovContacts"}).text.strip().replace("\n", ", ")
 
-            try:
-                h_author = hi.find("span", class_="catalog-card-author-title").text.strip()
-            except:
-                h_author = hi.find("a", class_="catalog-card-author-title").text.strip()
-            h_telephone = hi.find("div", {"data-jss": "ovContacts"}).text.strip().replace("\n", ", ")
+                    h_description = await get_description(session, h_url)
 
-            h_description = await get_description(session, h_url)
-
-            house_data.append({
-                "cost": h_price,
-                "cost_by_square": h_price_by_square,
-                "address": h_address,
-                "district": h_district,
-                "microdistrict": h_microdistrict,
-                "zk": h_zk,
-                "city": h_city,
-                "subway": h_subway,
-                "description": h_description,
-                "floor": h_floors,
-                "number_rooms": h_num_of_rooms,
-                "square_meters": h_square,
-                "publication_date": h_publication,
-                "contacts": f"{h_author}, {h_telephone}",
-                "link": h_url
-            })
-        print(f"[INFO] {page} page downloaded / {pages_count}")
+                    house_data.append({
+                        "cost": h_price,
+                        "cost_by_square": h_price_by_square,
+                        "address": h_address,
+                        "district": h_district,
+                        "microdistrict": h_microdistrict,
+                        "zk": h_zk,
+                        "city": h_city,
+                        "subway": h_subway,
+                        "description": h_description,
+                        "floor": h_floors,
+                        "number_rooms": h_num_of_rooms,
+                        "square_meters": h_square,
+                        "publication_date": h_publication,
+                        "contacts": f"{h_author}, {h_telephone}",
+                        "link": h_url
+                    })
+                except:
+                    print(f"{h_url} have problems with parsing")
+            print(f"[INFO] {page} page downloaded / {pages_count}")
+    except:
+        print(f"{url} {page} page have problems with parsing")
 
 
 async def gather_data():
@@ -171,29 +178,6 @@ def main():
 
     with open(f"data/house_scaper_{cur_time}.json", "w", encoding="utf-8") as file:
         json.dump(house_data, file, indent=4, ensure_ascii=False)
-
-    with open(f"data/house_scaper_{cur_time}.csv", "w", encoding="utf-8-sig", newline="") as file:
-        writer = csv.writer(file, delimiter=',')
-
-        writer.writerow(
-            (
-                "Стоимость",
-                "Стоимость / м^2",
-                "Город",
-                "Адрес",
-                "Район",
-                "Микрорайон",
-                "ЖК",
-                "Метро",
-                "Этаж",
-                "Кол-во комнат",
-                "Площадь",
-                "Дата публикации",
-                "Контакты",
-                "Ссылка",
-                "Описание"
-            )
-        )
 
     for house in house_data:
         with open(f"data/house_scaper_{cur_time}.csv", "a", encoding="utf-8-sig", newline="") as file:
