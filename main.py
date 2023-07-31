@@ -8,12 +8,11 @@ import time
 import aiohttp
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
+from urls import urls_global
 
 headers = {
     "User-Agent": str(UserAgent().random)
 }
-
-url_global = "https://rieltor.ua/flats-sale/#10.5/50.4333/30.5167"
 
 house_data = []
 
@@ -29,8 +28,8 @@ async def get_description(session, h_url):
             return "-"
 
 
-async def get_all_pages(session, page, pages_count):
-    url = f"https://rieltor.ua/flats-sale/?page={page}#10.5/50.4333/30.5167"
+async def get_all_pages(session, page, pages_count, city):
+    url = f"https://rieltor.ua/{city}/flats-sale/?page={page}#10.5/50.4333/30.5167"
     try:
         async with session.get(url=url, headers=headers) as req:
             soup = BeautifulSoup(await req.text(), "lxml")
@@ -121,9 +120,9 @@ async def get_all_pages(session, page, pages_count):
         print(f"{url} {page} page have problems with parsing")
 
 
-async def gather_data():
+async def gather_data(city):
     async with aiohttp.ClientSession(trust_env=True) as session:
-        request = await session.get(url=url_global, headers=headers)
+        request = await session.get(url=urls_global[city], headers=headers)
         soup = BeautifulSoup(await request.text(), "lxml")
 
         pages_count = int(soup.find("div", class_="pagin_offers_wr").find_all("a")[-1].text)
@@ -131,7 +130,7 @@ async def gather_data():
         tasks = []
 
         for page in range(1, pages_count + 1):
-            task = asyncio.create_task(get_all_pages(session, page, pages_count))
+            task = asyncio.create_task(get_all_pages(session, page, pages_count, city))
             tasks.append(task)
 
         await asyncio.gather(*tasks)
@@ -167,20 +166,20 @@ def delete_repeats():
     return unique_data
 
 
-def main():
+def main(city):
     if not os.path.exists("data"):
         os.mkdir("data")
-    asyncio.run(gather_data())
+    asyncio.run(gather_data(city))
 
-    cur_time = datetime.datetime.now().strftime("%d_%m_%Y_%H_%M")
+    cur_time = datetime.datetime.now().strftime("%d_%m_%Y")
 
     house_data = delete_repeats()
 
-    with open(f"data/house_scaper_{cur_time}.json", "w", encoding="utf-8") as file:
+    with open(f"data/house_scaper_{city.lower()}_{cur_time}.json", "w", encoding="utf-8") as file:
         json.dump(house_data, file, indent=4, ensure_ascii=False)
 
     for house in house_data:
-        with open(f"data/house_scaper_{cur_time}.csv", "a", encoding="utf-8-sig", newline="") as file:
+        with open(f"data/house_scaper_{city.lower()}_{cur_time}.csv", "a", encoding="utf-8-sig", newline="") as file:
             writer = csv.writer(file, delimiter=',')
 
             writer.writerow(
@@ -208,4 +207,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main("Lutsk")
