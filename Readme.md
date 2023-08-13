@@ -14,4 +14,4 @@ python main.py
 
 
 ## Possible errors
-I use multithreading, there is a chance to get banned on the site, so use a proxy
+I use async requests, there is a chance to get banned on the site, so use a proxy
